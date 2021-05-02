@@ -40,8 +40,10 @@ def read_group_topic(gt_path):
     # gt_path: path of file GroupTopic.txt
     group_list = list()
     with open(gt_path, 'r') as f:
-        for line in f:
-            line = line.strip('\n')
+        while True:
+            line = f.readline().strip('\n')
+            if not line:
+                break
             group = new_group()
             group_info = line.split(' ')
             group['id'] = int(group_info[0][1:])
@@ -60,8 +62,10 @@ def read_member_topic(mt_path):
     # mt_path: path of file MemberTopic.txt
     member_list = list()
     with open(mt_path, 'r') as f:
-        for line in f:
-            line = line.strip('\n')
+        while True:
+            line = f.readline().strip('\n')
+            if not line:
+                break
             member = new_member()
             member["id"] = int(line[1:])
             line = f.readline().strip('\n')
@@ -73,13 +77,15 @@ def read_member_topic(mt_path):
 def read_group_event(path):
     event_list = list()
     group_id = 0
-    while 1:
+    while True:
         ge_path = os.path.join(path, 'GroupEvent', 'G' + str(group_id) + '.txt')
         if not os.path.exists(ge_path):
             break
         with open(ge_path, 'r') as f:
-            for line in f:
-                line = line.strip('\n')
+            while True:
+                line = f.readline().strip('\n')
+                if not line:
+                    break
                 event = new_event()
                 event_info = line.split(" ")
                 event['id'] = int(event_info[0][1:])
