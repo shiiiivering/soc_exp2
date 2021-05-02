@@ -39,11 +39,9 @@ def new_topic(id = 0):
 def read_group_topic(gt_path):
     # gt_path: path of file GroupTopic.txt
     group_list = list()
-    with open (gt_path, 'r') as f:
-        while 1:
-            line = f.readline().strip('\n')
-            if not line:
-                break
+    with open(gt_path, 'r') as f:
+        for line in f:
+            line = line.strip('\n')
             group = new_group()
             group_info = line.split(' ')
             group['id'] = int(group_info[0][1:])
@@ -62,10 +60,8 @@ def read_member_topic(mt_path):
     # mt_path: path of file MemberTopic.txt
     member_list = list()
     with open(mt_path, 'r') as f:
-        while 1:
-            line = f.readline().strip('\n')
-            if not line:
-                break
+        for line in f:
+            line = line.strip('\n')
             member = new_member()
             member["id"] = int(line[1:])
             line = f.readline().strip('\n')
@@ -78,14 +74,12 @@ def read_group_event(path):
     event_list = list()
     group_id = 0
     while 1:
-        ge_path = path + 'GroupEvent\\G' + str(group_id) + '.txt'
+        ge_path = os.path.join(path, 'GroupEvent', 'G' + str(group_id) + '.txt')
         if not os.path.exists(ge_path):
             break
         with open(ge_path, 'r') as f:
-            while 1:
-                line = f.readline().strip('\n')
-                if not line:
-                    break
+            for line in f:
+                line = line.strip('\n')
                 event = new_event()
                 event_info = line.split(" ")
                 event['id'] = int(event_info[0][1:])
@@ -112,8 +106,8 @@ def read_group_event(path):
 def read_data(path, rebuild=False):
     # read the raw data from datafiles
     # Group Topic
-    gt_path = path + 'GroupTopic.txt'
-    gt_json_path = path + "group_list.json"
+    gt_path = os.path.join(path, 'GroupTopic.txt')
+    gt_json_path = os.path.join(path, "group_list.json")
     # if group_list.json
     if os.path.exists(gt_json_path) and (not rebuild):
         with open (gt_json_path) as f:
@@ -126,8 +120,8 @@ def read_data(path, rebuild=False):
     print("load group info complete")
 
     # MemberTopic
-    mt_path = path + 'MemberTopic.txt'
-    mt_json_path = path + 'member_topic.json'
+    mt_path = os.path.join(path, 'MemberTopic.txt')
+    mt_json_path = os.path.join(path, 'member_topic.json')
     # if member_topic.json
     if os.path.exists(mt_json_path) and (not rebuild):
         with open(mt_json_path) as f:
@@ -140,7 +134,7 @@ def read_data(path, rebuild=False):
     print("load member info complete")
 
     # Group Event
-    ge_json_path = path + 'event_list.json'
+    ge_json_path = os.path.join(path, 'event_list.json')
     # if event_list.json
     if os.path.exists(ge_json_path) and (not rebuild):
         with open (ge_json_path) as f:
@@ -153,7 +147,7 @@ def read_data(path, rebuild=False):
     print("load event info complete")
 
     # topics
-    topic_json_path = path + "topic_dict.json"
+    topic_json_path = os.path.join(path, "topic_dict.json")
     topic_dict = dict()
     if os.path.exists(topic_json_path) and (not rebuild):
         with open(topic_json_path) as f:
