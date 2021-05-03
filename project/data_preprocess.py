@@ -178,30 +178,24 @@ def read_data(path, rebuild=False):
     return group_list, member_list, event_list, topic_dict
 
 
-def member_similarity(member1, member2):
-    i = 0
-    j = 0
-    same_topics = 0
-    while i < len(member1['topics']) and j < len(member2['topics']):
-        t1 = member1['topics'][i]
-        t2 = member2['topics'][j]
-        if t1 < t2:
-            i = i + 1
-        elif t1 > t2:
-            j = j + 1
-        else:
-            same_topics = same_topics + 1
-            i = i + 1
-    return same_topics
+def member_event_extend(member_list, event_list):
+    event_list = sorted(event_list, key=lambda x : x['id'])
+    for member in member_list:
+        member['yes'] = list()
+        member['no'] = list()
+        member['maybe'] = list()
+        member['organizer'] = list()
+    for event in event_list:
+        for user_id in event['yes']:
+            member_list[user_id]['yes'].append(event)
+        for user_id in event['no']:
+            member_list[user_id]['no'].append(event)
+        for user_id in event['maybe']:
+            member_list[user_id]['maybe'].append(event)
+        for user_id in event['organizers']:
+            member_list[user_id]['organizer'].append(event)
+    return member_list
 
-
-def create_member_similarity_network(member_list):
-    member_num = max(len(member_list), member_list[-1]['id'] + 1)
-    net = np.zeros((member_num, member_num))
-    for index1, member1 in enumerate(member_list):
-        for index2, member2 in enumerate(member_list):
-            net[index1][index2] = member_similarity(member1, member2)
-    return net
 
 def check_data(data):
     for id, i in enumerate(data):
@@ -209,6 +203,7 @@ def check_data(data):
             print (id)
             return False
     return True
+
 
 
 

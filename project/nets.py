@@ -2,6 +2,7 @@ import networkx as nx
 
 import config
 import data_preprocess
+import numpy as np
 
 def compute_member_similarity(u, v):
     return len([topic for topic in u['topics'] if topic in v['topics']])
@@ -59,3 +60,14 @@ def create_member_similarity_dinetwork(member_list, topic_dict):
                         if found_edge % 1000000 == 0:
                             print(f"##########found {found_edge} edges (out of {counter} tests)")
     return G
+
+
+def create_member_similarity_array(member_list):
+    member_num = max(len(member_list), member_list[-1]['id'] + 1)
+    net = np.zeros((member_num, member_num), dtype=int)
+    for index1, member1 in enumerate(member_list):
+        print(f"processing {index1} / {len(member_list)}")
+        for index2, member2 in enumerate(member_list):
+            net[index1][index2] = compute_member_similarity(member1, member2)
+
+    return net
