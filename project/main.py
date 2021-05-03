@@ -4,7 +4,7 @@ import nets
 import networkx as nx
 
 def main():
-    path = "D:\\learning\\社会计算\\exp2\\data\\"
+    path = "data"
     group_list, member_list, event_list, topic_dict = data_preprocess.read_data(path)
     assert data_preprocess.check_data(group_list)
     assert data_preprocess.check_data(member_list)
