@@ -45,16 +45,38 @@ def test_similarity(member_list, topic_dict, group_list, train_set, test_set):
     total_test = 0
 
     def compute_event_sim(event1, event2, decisicion = 'yes'):
+        # 事件之间的相似度按照（共有topic数量 ** 2 / 两者各自topic数量和）  来计算
         related_topic1 = set()
         related_topic2 = set()
-        for o in (event1[decisicion]):
+        for o in (event1['yes'] + event1['no'] + event1["maybe"]):
             related_topic1.update(member_list[o]['topics'])
-        for o in (event2[decisicion]):
+        for o in (event2['yes'] + event2['no'] + event2["maybe"]):
             related_topic2.update(member_list[o]['topics'])
         base = (len(related_topic1) + len(related_topic2))
         if base == 0:
             return 0.0
         return len(related_topic1 & related_topic2) ** 2 / (len(related_topic1) + len(related_topic2))
+
+        # # 事件相似度按照向量乘积平方根算 效果不好
+        # related_topic = set()
+        # for o in (event1['yes'] + event1['no'] + event1["maybe"]):
+        #     related_topic.update(member_list[o]['topics'])
+        # for o in (event2['yes'] + event2['no'] + event2["maybe"]):
+        #     related_topic.update(member_list[o]['topics'])
+        # related_topic = list(related_topic)
+        # topic_hash = dict()
+        # for idx, i in enumerate(related_topic):
+        #     if i not in topic_hash.keys():
+        #         topic_hash[i] = idx
+        # related_topic1 = np.zeros(len(topic_hash.keys()))
+        # related_topic2 = np.zeros(len(topic_hash.keys()))
+        # for o in (event1['yes'] + event1['no'] + event1["maybe"]):
+        #     a = [topic_hash[p] for p in member_list[o]['topics']]
+        #     related_topic1[a] += 1
+        # for o in (event2['yes'] + event2['no'] + event2["maybe"]):
+        #     a = [topic_hash[p] for p in member_list[o]['topics']]
+        #     related_topic2[a] += 1
+        # return np.dot(related_topic2, related_topic1) ** 0.5
 
     def predict(member_id, event):
         # predict member_id's choice of event
