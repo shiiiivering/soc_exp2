@@ -2,10 +2,17 @@ import data_preprocess
 import train_test
 import nets
 import networkx as nx
+import argparse
+import os
 
 def main():
-    path = "D:\\learning\\社会计算\\exp2\\data"
-    group_list, member_list, event_list, topic_dict = data_preprocess.read_data(path)
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--path', type=str, default="data", help='dataset path')
+    args = parser.parse_args()
+
+    if not os.path.isdir(args.path):
+        raise NotADirectoryError(args.path)
+    group_list, member_list, event_list, topic_dict = data_preprocess.read_data(args.path)
     assert data_preprocess.check_data(group_list)
     assert data_preprocess.check_data(member_list)
 
