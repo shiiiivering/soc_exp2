@@ -34,7 +34,7 @@ def test_similarity(member_list, topic_dict, group_list, train_set, test_set, si
         - 'event': 基于用户共同参与的事件计算相似度，使用评分矩阵，行：用户，列：事件，评分： yes:2, no:-1, maybe:1, organizer:3, other: 0
     2.3 找出config.num_neighbour个最相似的邻居，并找出他们有关的事件集
     2.4 有关事件集与要预测的事件计算相似度(共同topic数, 见compute_event_sim)
-    2.5 相似成员的事件相似度累加，即为这个事件对某个决定(yes, no, maybe)可能性的权重加成
+    2.5 事件相似度 * 成员相似度，即为这个事件对某个决定(yes, no, maybe)可能性的权重加成
     2.6 找出可能性权重最大的一个决定即为预测值
     :param member_list: 原始的memberlist
     :param topic_dict:
