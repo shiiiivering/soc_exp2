@@ -195,6 +195,21 @@ def member_event_extend(member_list, event_list):
         for user_id in event['organizers']:
             member_list[user_id]['organizer'].append(event)
     return member_list
+def group_member_extend(group_list, event_list):
+    for group in group_list:
+        group['members'] = set()
+    for event in event_list:
+        for m in event['yes']:
+            group_list[event['group']]['members'].add(m)
+        for m in event['no']:
+            group_list[event['group']]['members'].add(m)
+        for m in event['maybe']:
+            group_list[event['group']]['members'].add(m)
+        for m in event['maybe']:
+            group_list[event['group']]['members'].add(m)
+    for group in group_list:
+        group['members'] = list(group['members'])
+    return group_list
 
 
 def check_data(data):

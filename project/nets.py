@@ -71,3 +71,32 @@ def create_member_similarity_array(member_list):
             net[index1][index2] = compute_member_similarity(member1, member2)
 
     return net
+
+def create_group_net(member_list, group_list, event_list, member_sim_mode = 'topic'):
+    # 用团体之间的联系建图， 成员间的联系权重为成员相似度和共同组之间的加权
+
+    def member_sim(u, v):
+        if member_sim_mode == 'topic':
+            if len(u['topics']) == 0 or len(v['topics']) == 0:
+                return 0.0
+            return len([topic for topic in u['topics'] if topic in v['topics']]) ** 2 / (len(u['topics'])) / len(v['topics'])
+        else:
+            return None
+
+    group_list = data_preprocess.group_member_extend(group_list, event_list)
+    print("begin construct directed network")
+    G = nx.Graph()
+    # adding nodes
+    node_list = [member['id'] for member in member_list]
+    G.add_nodes_from(node_list)
+    for group in group_list:
+        for idx1 in range(len(group['members']) - 1):
+            for idx2 in range(idx1 + 1, len(group['members'])):
+                g_id1 = group['members'][idx1]
+                g_id2 = group['members'][idx2]
+                if not G.has_edge(g_id1, g_id2):
+                    G.add_edge(g_id1, g_id2, common_group_num = 1, sim = member_sim(member_list[g_id1], member_list[g_id2]))
+                else:
+                    G.edges[g_id1, g_id2]['common_group_num'] += 1
+        print(f'processed group {group["id"]}(with {len(group["members"])} members)')
+    return  G
