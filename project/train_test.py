@@ -179,14 +179,13 @@ def test_similarity(member_list, topic_dict, group_list, train_set, test_set, si
     return correct_num / total_test
 
 
-def test_cascade(member_list, topic_dict, group_list, train_set, test_set):
+def test_cascade(member_list, topic_dict, group_list, train_set, test_set, sim_type='event'):
     # 社交级联，用迭代的方式使用户间互相影响， 最大迭代次数为10
     # 用户相似性为三维，对应不同决定, 计算方式见choice_dim函数，注意这个相似性不是对称的，而是表示当另一个用户做出某个选择时对此用户的影响强度
     # 函数最后注释部分为绘制级联迭代次数统计图
     group_list = data_preprocess.group_member_extend(group_list, train_set)
     correct = 0
     predicted = 0
-    cascading_max_step = 10
     cascading_step_counter = np.zeros(10, dtype=int)
     # 将事件信息加入member list
     member_list = data_preprocess.member_event_extend(member_list, train_set)
@@ -198,38 +197,63 @@ def test_cascade(member_list, topic_dict, group_list, train_set, test_set):
     #     member_group[event['maybe'], event['group']] -= 1
     #     member_group[event['organizers'], event['group']] += 4
     # 测试
+
+    def compute_member_sim(related_member):
+        member_sim = None
+        if sim_type == 'choice':
+            member_sim = np.zeros((len(related_member), len(related_member), 3), dtype = float)
+            member_event = np.zeros((len(related_member), len(train_set) + len(test_set) + 1))
+            # 创建用户事件关系矩阵
+            # yes: 1
+            # no: 2
+            # maybe: 3
+            # organizer: 4
+            for idx1, member_id in enumerate(related_member):
+                member = member_list[member_id]
+                member_event[idx1, [e['id'] for e in member['yes'] + member['organizer']]] = 1
+                member_event[idx1, [e['id'] for e in member['no']]] = 2
+                member_event[idx1, [e['id'] for e in member['maybe']]] = 3
+            # 计算用户相似性
+            for idx1, member_id1 in enumerate(related_member):
+                for idx2, member_id2 in enumerate(related_member):
+                    if member_id1 == member_id2:
+                        continue
+                    else:
+                        def choice_sim(m1, m2, choice):
+                            c1 = member_event[m1] == choice
+                            c2 = member_event[m2] == choice
+                            c2 = c2 & (member_event[m1] != 0)
+                            if c2.sum() == 0:
+                                return 0.0
+                            result =  (c1 & c2).sum() / (c2).sum()
+                            return result
+                        member_sim[idx1][idx2][0] = choice_sim(idx1, idx2, 1)
+                        member_sim[idx1][idx2][1] = choice_sim(idx1, idx2, 2)
+                        member_sim[idx1][idx2][2] = choice_sim(idx1, idx2, 3)
+        elif sim_type == 'event':
+            member_sim = np.zeros((len(related_member), len(train_set) + len(test_set) + 1))
+            # 创建用户事件关系矩阵
+            # yes: 1
+            # no: 2
+            # maybe: 3
+            # organizer: 4
+            for idx1, member_id in enumerate(related_member):
+                member = member_list[member_id]
+                member_sim[idx1, [e['id'] for e in member['yes']]] = 2
+                member_sim[idx1, [e['id'] for e in member['no']]] = -1
+                member_sim[idx1, [e['id'] for e in member['maybe']]] = 1
+                member_sim[idx1, [e['id'] for e in member['organizer']]] = 3
+            member_sim = scale(member_sim, axis=1, with_std=False)
+            member_sim = cosine_similarity(member_sim)    # len(related_member) * len(related_member)
+        return member_sim
+            
+
     for idx, event in enumerate(test_set):
         related_member = [member_id for member_id in event['yes'] + event['no'] + event['maybe']]
+        if len(related_member) == 0:
+            continue
         choice = np.zeros(len(related_member), dtype = int)
-        member_sim = np.zeros((len(related_member), len(related_member), 3), dtype = float)
-        member_event = np.zeros((len(related_member), len(train_set) + len(test_set) + 1))
-        # 创建用户事件关系矩阵
-        # yes: 1
-        # no: 2
-        # maybe: 3
-        # organizer: 4
-        for idx1, member_id in enumerate(related_member):
-            member = member_list[member_id]
-            member_event[idx1, [e['id'] for e in member['yes'] + member['organizer']]] = 1
-            member_event[idx1, [e['id'] for e in member['no']]] = 2
-            member_event[idx1, [e['id'] for e in member['maybe']]] = 3
-        # 计算用户相似性
-        for idx1, member_id1 in enumerate(related_member):
-            for idx2, member_id2 in enumerate(related_member):
-                if member_id1 == member_id2:
-                    continue
-                else:
-                    def choice_sim(m1, m2, choice):
-                        c1 = member_event[m1] == choice
-                        c2 = member_event[m2] == choice
-                        c2 = c2 & (member_event[m1] != 0)
-                        if c2.sum() == 0:
-                            return 0.0
-                        result =  (c1 & c2).sum() / (c2).sum()
-                        return result
-                    member_sim[idx1][idx2][0] = choice_sim(idx1, idx2, 1)
-                    member_sim[idx1][idx2][1] = choice_sim(idx1, idx2, 2)
-                    member_sim[idx1][idx2][2] = choice_sim(idx1, idx2, 3)
+        member_sim = compute_member_sim(related_member)
         # 初始化, 使用用户在其他事件中做出最多次数的回应作为回应
         for idx1, member_id in enumerate(related_member):
             member = member_list[member_id]
@@ -239,12 +263,15 @@ def test_cascade(member_list, topic_dict, group_list, train_set, test_set):
             weight[2] = len(member['maybe'])
             choice[idx1] = np.argmax(weight)
         # 级联, 并迭代
-        for i in range(cascading_max_step):
+        for i in range(config.cascading_max_step):
             temp_choice = choice.copy()
             for idx1, member in enumerate(related_member):
                 weight = np.array([0.0, 0.0, 0.0])
                 for idx2, member_choice in enumerate(choice):
-                    weight[member_choice] += member_sim[idx1][idx2][member_choice]
+                    if sim_type == 'choice':
+                        weight[member_choice] += member_sim[idx1][idx2][member_choice]
+                    elif sim_type == 'event':
+                        weight[member_choice] += member_sim[idx1][idx2] if idx1 != idx2 else 0.0
                 temp_choice[idx1] = np.argmax(weight)
             if np.all(temp_choice == choice):
                 break
@@ -264,6 +291,6 @@ def test_cascade(member_list, topic_dict, group_list, train_set, test_set):
                 print(f"predicted {predicted} times in {idx + 1} events, {correct} correct, correct rate is {correct / predicted}")
             # # Count the number of cascading iterations and draw plots
             # if predicted % 300 == 0:
-            #     plt.bar(range(cascading_max_step), cascading_step_counter)
+            #     plt.bar(range(config.cascading_max_step), cascading_step_counter)
             #     plt.show()
     return correct / predicted

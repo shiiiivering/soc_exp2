@@ -1,6 +1,7 @@
 ### 依赖
 - networkx
 - scikit-learn
+- matplotlib
 
 ### 运行
 - `python main.py --path=path/to/dataset`, 如：`python main.py --path="D:\\learning\\社会计算\\exp2\\data"`
@@ -20,4 +21,4 @@
 ### 正确率
 - 使用用户共同topic计算相似度：约 0.76
 - 使用用户共同参与事件计算相似度：约 0.84
-- 初步使用级联：约 0.90到0.91之间
+- 初步使用级联（基于选择或者评分矩阵）：约 0.90到0.91之间
