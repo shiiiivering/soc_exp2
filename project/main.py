@@ -18,18 +18,18 @@ def main():
     assert data_preprocess.check_data(member_list)
 
     # 使用团体的信息创建网络，只有有共同团体的成员之间有边，边权为成员topic相似度  --胡煜霄
-    G = nets.create_group_net(member_list, group_list, event_list)
-    nx.write_gml(G, os.path.join(args.path, 'group_network.gml'))
+    # G = nets.create_group_net(member_list, group_list, event_list)
+    # nx.write_gml(G, os.path.join(args.path, 'group_network.gml'))
 
-    # 使用成员间事件的相似度作为成员相似度。创建完整矩阵，需要100gb内存，请在服务器上运行
-    strange_org = set()
-    normal_org = set()
-    for event in event_list:
-        for o in event['organizers']:
-            if len(member_list[o]['topics']) == 0:
-                strange_org.add(member_list[o]['id'])
-            else:
-                normal_org.add(member_list[o]['id'])
+    # # 使用成员间事件的相似度作为成员相似度。创建完整矩阵，需要100gb内存，请在服务器上运行
+    # strange_org = set()
+    # normal_org = set()
+    # for event in event_list:
+    #     for o in event['organizers']:
+    #         if len(member_list[o]['topics']) == 0:
+    #             strange_org.add(member_list[o]['id'])
+    #         else:
+    #             normal_org.add(member_list[o]['id'])
 
     train_test.process_k_fold(member_list, event_list, topic_dict, group_list, 5)
     # G = nets.create_member_similarity_array(member_list)

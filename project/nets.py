@@ -81,7 +81,19 @@ def create_group_net(member_list, group_list, event_list, member_sim_mode = 'top
                 return 0.0
             return len([topic for topic in u['topics'] if topic in v['topics']]) ** 2 / (len(u['topics'])) / len(v['topics'])
         else:
-            return None
+            u_invited_set = set(u['yes'] + u['no'] + u['maybe'])
+            v_invited_set = set(v['yes'] + v['no'] + v['maybe'])
+            common_invited = len(u_invited_set & v_invited_set)
+            u_set = set(u["yes"])
+            v_set = set(v['yes'])
+            yes = len(u_set & v_set) / common_invited
+            u_set = set(u["no"])
+            v_set = set(v["no"])
+            no = len(u_set & v_set) / common_invited
+            u_set = set(u['maybe'])
+            v_set = set(v['maybe'])
+            maybe = len(u_set & v_set) / common_invited
+            return yes + no + maybe
 
     group_list = data_preprocess.group_member_extend(group_list, event_list)
     print("begin construct directed network")
@@ -89,6 +101,7 @@ def create_group_net(member_list, group_list, event_list, member_sim_mode = 'top
     # adding nodes
     node_list = [member['id'] for member in member_list]
     G.add_nodes_from(node_list)
+    # adding edges
     for group in group_list:
         for idx1 in range(len(group['members']) - 1):
             for idx2 in range(idx1 + 1, len(group['members'])):
