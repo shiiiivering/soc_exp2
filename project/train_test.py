@@ -5,6 +5,7 @@ import config
 from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.preprocessing import scale
 import matplotlib.pyplot as plt
+import scipy
 
 # 仅划分事件，
 def process_k_fold(member_list, event_list, topic_dict, group_list, k):
@@ -19,7 +20,7 @@ def process_k_fold(member_list, event_list, topic_dict, group_list, k):
             if idx == i:
                 test_set = event_list[grid_size * i : grid_size * (i + 1)]
             else:
-                train_set = train_set + event_list[grid_size * i : grid_size * (i + 1)]
+                train_set = train_set + event_list[grid_size * idx : grid_size * (idx + 1)]
         correct_rate = test_cascade(member_list, topic_dict, group_list, train_set, test_set)
         print(f"the {i}th fold, correct rate: {correct_rate}")
 
@@ -202,7 +203,7 @@ def test_cascade(member_list, topic_dict, group_list, train_set, test_set, sim_t
         member_sim = None
         if sim_type == 'choice':
             member_sim = np.zeros((len(related_member), len(related_member), 3), dtype = float)
-            member_event = np.zeros((len(related_member), len(train_set) + len(test_set) + 1))
+            member_event = np.zeros((len(related_member), len(train_set) + len(test_set) + 2))
             # 创建用户事件关系矩阵
             # yes: 1
             # no: 2
@@ -249,7 +250,8 @@ def test_cascade(member_list, topic_dict, group_list, train_set, test_set, sim_t
             
 
     for idx, event in enumerate(test_set):
-        related_member = [member_id for member_id in event['yes'] + event['no'] + event['maybe']]
+        related_member = group_list[event['group']]['members']
+        event_member = [member_id for member_id in event['yes'] + event['no'] + event['maybe']]
         if len(related_member) == 0:
             continue
         choice = np.zeros(len(related_member), dtype = int)
@@ -298,9 +300,10 @@ def test_cascade(member_list, topic_dict, group_list, train_set, test_set, sim_t
                 correct += 1
             elif pre == 2 and (member_id in event['maybe']):
                 correct += 1
-            predicted += 1
-            if predicted % 100 == 0:
-                print(f"predicted {predicted} times in {idx + 1} events, {correct} correct, correct rate is {correct / predicted}")
+            if related_member[idx1] in event['yes'] + event['no'] + event['maybe']:
+                predicted += 1
+                if predicted % 100 == 0 and predicted != 0:
+                    print(f"predicted {predicted} times in {idx + 1} events, {correct} correct, correct rate is {correct / predicted}")
             # # Count the number of cascading iterations and draw plots
             # if predicted % 300 == 0:
             #     plt.bar(range(config.cascading_max_step), cascading_step_counter)
@@ -308,7 +311,7 @@ def test_cascade(member_list, topic_dict, group_list, train_set, test_set, sim_t
     return correct / predicted
 
 
-def evolution_over_time(member_list, topic_dict, group_list, event_list):
+def evolution_over_time(member_list, topic_dict, group_list, event_list, start_point=0):
     # 声明
     update_frequency = 100
     correct = 0
@@ -334,15 +337,31 @@ def evolution_over_time(member_list, topic_dict, group_list, event_list):
     event_time_weight -= event_time_weight[0]
 
     for current_event_idx, current_event in enumerate(event_list):
+        if current_event_idx <= start_point:
+            event = event_list[current_event_idx]
+            for member in event['yes']:
+                member_list[member]['yes'].append(event)
+            for member in event['no']:
+                member_list[member]['no'].append(event)
+            for member in event['maybe']:
+                member_list[member]['maybe'].append(event)
+            continue
+
         related_member = [member for member in current_event['yes'] + current_event['no'] + current_event['maybe']]
         choice = np.zeros(len(related_member), dtype=int)
         member_sim = np.zeros((len(related_member), len(related_member), 3), dtype=float)
         member_event = np.zeros((len(related_member), len(event_list) + 1))
 
         # 计算事件随时间变化的权重
-        current_event_time_weight = event_time_weight - (event_time_weight[max(0, current_event_idx - 30000)] - 1)
+        # current_event_time_weight = event_time_weight - (event_time_weight[max(0, current_event_idx - 30000)] - 1)
+        # current_event_time_weight /= current_event_time_weight[current_event_idx]
+        # current_event_time_weight[current_event_time_weight < 0] = 0.0
+        # current_event_time_weight += current_event_time_weight[current_event_idx] / 2.0
+        current_event_time_weight = event_time_weight - event_time_weight[0]
+        current_event_time_weight[current_event_idx + 1 : ] = 0
         current_event_time_weight /= current_event_time_weight[current_event_idx]
-        current_event_time_weight[current_event_time_weight < 0] = 0.0
+        # current_event_time_weight = scipy.special.softmax(current_event_time_weight)
+        current_event_time_weight = current_event_time_weight ** 0.5
         # 创建用户事件关系矩阵
         # yes: 1
         # no: 2
@@ -376,19 +395,19 @@ def evolution_over_time(member_list, topic_dict, group_list, event_list):
             weight = np.array([0, 0, 0])
             for event1 in member['yes']:
                 if event1['group'] == current_event['group']:
-                    weight[0] += 2
+                    weight[0] += 2 * current_event_time_weight[event1["id"]]
                 else:
-                    weight[0] += 1
+                    weight[0] += 1 * current_event_time_weight[event1["id"]]
             for event1 in member['no']:
                 if event1['group'] == current_event['group']:
-                    weight[1] += 2
+                    weight[1] += 2 * current_event_time_weight[event1["id"]]
                 else:
-                    weight[1] += 1
+                    weight[1] += 1 * current_event_time_weight[event1["id"]]
             for event1 in member['maybe']:
                 if event1['group'] == current_event['group']:
-                    weight[2] += 2
+                    weight[2] += 2 * current_event_time_weight[event1["id"]]
                 else:
-                    weight[2] += 1
+                    weight[2] += 1 * current_event_time_weight[event1["id"]]
             choice[idx1] = np.argmax(weight)
         # 级联, 并迭代
         for i in range(cascading_max_step):
@@ -432,6 +451,6 @@ def evolution_over_time(member_list, topic_dict, group_list, event_list):
             correct_rate_list.append(part_correct / part_predicted)
             part_correct = 0
             part_predicted = 0
-            plt.plot(range(100, current_event_idx + 2, 100), correct_rate_list)
+            plt.plot(np.array(range(0, len(correct_rate_list))) * 100 + start_point, correct_rate_list)
             plt.show()
 

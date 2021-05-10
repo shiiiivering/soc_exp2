@@ -30,8 +30,8 @@ def main():
     #             strange_org.add(member_list[o]['id'])
     #         else:
     #             normal_org.add(member_list[o]['id'])
-    train_test.evolution_over_time(member_list, topic_dict, group_list, event_list)
-    # train_test.process_k_fold(member_list, event_list, topic_dict, group_list, 5)
+    # train_test.evolution_over_time(member_list, topic_dict, group_list, event_list, start_point=50000)
+    train_test.process_k_fold(member_list, event_list, topic_dict, group_list, 5)
     # G = nets.create_member_similarity_array(member_list)
     # nx.write_gml(G, path + 's_dinetwork.gml')
     print(0)
