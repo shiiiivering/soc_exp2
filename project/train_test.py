@@ -202,7 +202,7 @@ def test_cascade(member_list, topic_dict, group_list, train_set, test_set):
         related_member = [member_id for member_id in event['yes'] + event['no'] + event['maybe']]
         choice = np.zeros(len(related_member), dtype = int)
         member_sim = np.zeros((len(related_member), len(related_member), 3), dtype = float)
-        member_event = np.zeros((len(related_member), len(train_set) + len(test_set) + 1))
+        member_event = np.zeros((len(related_member), len(train_set) + len(test_set) + 2))
         # 创建用户事件关系矩阵
         # yes: 1
         # no: 2
@@ -234,9 +234,21 @@ def test_cascade(member_list, topic_dict, group_list, train_set, test_set):
         for idx1, member_id in enumerate(related_member):
             member = member_list[member_id]
             weight = np.array([0, 0, 0])
-            weight[0] = len(member['yes'])
-            weight[1] = len(member['no'])
-            weight[2] = len(member['maybe'])
+            for event1 in member['yes']:
+                if event1['group'] == event['group']:
+                    weight[0] += 2
+                else:
+                    weight[0] += 1
+            for event1 in member['no']:
+                if event1['group'] == event['group']:
+                    weight[1] += 2
+                else:
+                    weight[1] += 1
+            for event1 in member['maybe']:
+                if event1['group'] == event['group']:
+                    weight[2] += 2
+                else:
+                    weight[2] += 1
             choice[idx1] = np.argmax(weight)
         # 级联, 并迭代
         for i in range(cascading_max_step):
@@ -267,3 +279,132 @@ def test_cascade(member_list, topic_dict, group_list, train_set, test_set):
             #     plt.bar(range(cascading_max_step), cascading_step_counter)
             #     plt.show()
     return correct / predicted
+
+
+def evolution_over_time(member_list, topic_dict, group_list, event_list):
+    # 声明
+    update_frequency = 100
+    correct = 0
+    predicted = 0
+    part_correct = 0
+    part_predicted = 0
+    correct_rate_list = list()
+    cascading_max_step = 10
+    cascading_step_counter = np.zeros(10, dtype=int)
+
+    # 向member添加事件信息初始化
+    for member in member_list:
+        member['yes'] = list()
+        member['no'] = list()
+        member['maybe'] = list()
+        member['organizer'] = list()
+    # 向group添加成员信息初始化
+    for group in group_list:
+        group['members'] = set()
+
+    event_list.sort(key=lambda x : x['timestamp'])
+    event_time_weight = np.array([0.0] + [event['timestamp'] for event in event_list], dtype=float)
+    event_time_weight -= event_time_weight[0]
+
+    for current_event_idx, current_event in enumerate(event_list):
+        related_member = [member for member in current_event['yes'] + current_event['no'] + current_event['maybe']]
+        choice = np.zeros(len(related_member), dtype=int)
+        member_sim = np.zeros((len(related_member), len(related_member), 3), dtype=float)
+        member_event = np.zeros((len(related_member), len(event_list) + 1))
+
+        # 计算事件随时间变化的权重
+        current_event_time_weight = event_time_weight - (event_time_weight[max(0, current_event_idx - 30000)] - 1)
+        current_event_time_weight /= current_event_time_weight[current_event_idx]
+        current_event_time_weight[current_event_time_weight < 0] = 0.0
+        # 创建用户事件关系矩阵
+        # yes: 1
+        # no: 2
+        # maybe: 3
+        # organizer: 4
+        for idx1, member_id in enumerate(related_member):
+            member = member_list[member_id]
+            member_event[idx1, [e['id'] for e in member['yes'] + member['organizer']]] = 1
+            member_event[idx1, [e['id'] for e in member['no']]] = 2
+            member_event[idx1, [e['id'] for e in member['maybe']]] = 3
+        # 计算用户相似性
+        for idx1, member_id1 in enumerate(related_member):
+            for idx2, member_id2 in enumerate(related_member):
+                if member_id1 == member_id2:
+                    continue
+                else:
+                    def choice_sim(m1, m2, choice):
+                        c1 = member_event[m1] == choice
+                        c2 = member_event[m2] == choice
+                        c2 = c2 & (member_event[m1] != 0)
+                        if c2.sum() == 0:
+                            return 0.0
+                        result =  ((c1 & c2) * current_event_time_weight).sum() / (c2 * current_event_time_weight).sum()
+                        return result
+                    member_sim[idx1][idx2][0] = choice_sim(idx1, idx2, 1)
+                    member_sim[idx1][idx2][1] = choice_sim(idx1, idx2, 2)
+                    member_sim[idx1][idx2][2] = choice_sim(idx1, idx2, 3)
+        # 初始化, 使用用户在其他事件中做出最多次数的回应作为回应
+        for idx1, member_id in enumerate(related_member):
+            member = member_list[member_id]
+            weight = np.array([0, 0, 0])
+            for event1 in member['yes']:
+                if event1['group'] == current_event['group']:
+                    weight[0] += 2
+                else:
+                    weight[0] += 1
+            for event1 in member['no']:
+                if event1['group'] == current_event['group']:
+                    weight[1] += 2
+                else:
+                    weight[1] += 1
+            for event1 in member['maybe']:
+                if event1['group'] == current_event['group']:
+                    weight[2] += 2
+                else:
+                    weight[2] += 1
+            choice[idx1] = np.argmax(weight)
+        # 级联, 并迭代
+        for i in range(cascading_max_step):
+            temp_choice = choice.copy()
+            for idx1, member in enumerate(related_member):
+                weight = np.array([0.0, 0.0, 0.0])
+                for idx2, member_choice in enumerate(choice):
+                    weight[member_choice] += member_sim[idx1][idx2][member_choice]
+                temp_choice[idx1] = np.argmax(weight)
+            if np.all(temp_choice == choice):
+                break
+            choice = temp_choice
+        cascading_step_counter[i] += 1
+        # 检测:
+        for idx1, pre in enumerate(choice):
+            member_id = related_member[idx1]
+            if pre == 0 and (member_id in current_event['yes']):
+                correct += 1
+                part_correct += 1
+            elif pre == 1 and (member_id in current_event['no']):
+                correct += 1
+                part_correct += 1
+            elif pre == 2 and (member_id in current_event['maybe']):
+                correct += 1
+                part_correct += 1
+            predicted += 1
+            part_predicted += 1
+            if predicted % 100 == 0:
+                print(
+                    f"predicted {predicted} times in {current_event_idx + 1} events, {correct} correct, correct rate is {correct / predicted}")
+        # 每update_frequency个事件更新一下原始数据
+        if (current_event_idx + 1) % update_frequency == 0:
+            for idx in range(current_event_idx - update_frequency, current_event_idx):
+                event = event_list[idx]
+                for member in event['yes']:
+                    member_list[member]['yes'].append(event)
+                for member in event['no']:
+                    member_list[member]['no'].append(event)
+                for member in event['maybe']:
+                    member_list[member]['maybe'].append(event)
+            correct_rate_list.append(part_correct / part_predicted)
+            part_correct = 0
+            part_predicted = 0
+            plt.plot(range(100, current_event_idx + 2, 100), correct_rate_list)
+            plt.show()
+
