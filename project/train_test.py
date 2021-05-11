@@ -8,31 +8,38 @@ import matplotlib.pyplot as plt
 import scipy
 
 # 仅划分事件，
-def process_k_fold(member_list, event_list, topic_dict, group_list, k):
+def process_k_fold(member_list, event_list, topic_dict, group_list, k, test='similarity', user_sim='topic', event_sim='all', social_constraint='event'):
     # k折划分测试
     random.shuffle(event_list)
     total_size = len(event_list)
     grid_size = total_size // k
     test_set = list()
+    all_correct_rates = []
     for i in range(k):
         train_set = list()
         for idx in range(k):
             if idx == i:
-                test_set = event_list[grid_size * i : grid_size * (i + 1)]
+                test_set = event_list[grid_size * idx : grid_size * (idx + 1)] if idx != k-1 else event_list[grid_size * idx : ]
             else:
-                train_set = train_set + event_list[grid_size * idx : grid_size * (idx + 1)]
-        correct_rate = test_cascade(member_list, topic_dict, group_list, train_set, test_set)
-        print(f"the {i}th fold, correct rate: {correct_rate}")
+                train_set += event_list[grid_size * idx : grid_size * (idx + 1)] if idx != k-1 else event_list[grid_size * idx : ]
+        assert(len(test_set)+len(train_set) == total_size)
+        if test == 'similarity':
+            correct_rate = test_similarity(member_list, topic_dict, group_list, train_set, test_set, user_sim, event_sim, social_constraint)
+        elif test == 'cascade':
+            correct_rate = test_cascade(member_list, topic_dict, group_list, train_set, test_set, user_sim, social_constraint)
+        all_correct_rates.append(correct_rate)
+        print(f"the {i}th fold, correct rate: {correct_rate}", flush=True)
+    print(f"mean correct rate: {np.mean(all_correct_rates)}", flush=True)
 
 
-def test_similarity(member_list, topic_dict, group_list, train_set, test_set, sim_type='topic'):
+def test_similarity(member_list, topic_dict, group_list, train_set, test_set, user_sim='topic', event_sim='organizers', social_constraint='group', print_correct=False):
     '''
     仅使用用户间相似度的网络
     流程：
     1. 将训练集中的event信息加入member_list （member_event_extend）
     2. 对每个事件中的有关用户进行预测
     2.2 计算要预测的用户和所有其他用户的相似度
-        sim_type:
+        user_sim:
         - 'topic': 基于用户topic计算相似度，(共同topic数 / ((用户1 topic数) * (用户2 topic数)))
         - 'event': 基于用户共同参与的事件计算相似度，使用评分矩阵，行：用户，列：事件，评分： yes:2, no:-1, maybe:1, organizer:3, other: 0
     2.3 找出config.num_neighbour个最相似的邻居，并找出他们有关的事件集
@@ -44,17 +51,20 @@ def test_similarity(member_list, topic_dict, group_list, train_set, test_set, si
     :param group_list:
     :param train_set: 划分出来的事件的训练集
     :param test_set: 划分出来的事件的测试集
-    :param sim_type: 相似度计算方法
+    :param user_sim: 用户相似度计算方法
+    :param event_sim: 事件相似度计算方法
+    :param social_constraint: 使用什么社交约束
     :return:
     '''
     member_list = data_preprocess.member_event_extend(member_list, train_set)
+    group_list = data_preprocess.group_member_extend(group_list, train_set)
     compared_event = dict()  # keys are event_ids; values are event similarity
     correct_num = 0
     total_test = 0
 
-    if sim_type == 'topic':
+    if user_sim == 'topic':
         member_topic_num = np.array([len(member['topics']) for member in member_list])
-    elif sim_type == 'event':
+    elif user_sim == 'event':
         #注意：需要 100GB 内存！！！
         sim_array = np.zeros((len(member_list), len(train_set)+len(test_set)), dtype = float)
         for member in member_list:
@@ -69,10 +79,16 @@ def test_similarity(member_list, topic_dict, group_list, train_set, test_set, si
         # 事件之间的相似度按照（共有topic数量 ** 2 / 两者各自topic数量和）  来计算
         related_topic1 = set()
         related_topic2 = set()
-        for o in (event1['yes'] + event1['no'] + event1["maybe"]):
-            related_topic1.update(member_list[o]['topics'])
-        for o in (event2['yes'] + event2['no'] + event2["maybe"]):
-            related_topic2.update(member_list[o]['topics'])
+        if event_sim == 'organizers':
+            for o in event1['organizers']:
+                related_topic1.update(member_list[o]['topics'])
+            for o in event2['organizers']:
+                related_topic2.update(member_list[o]['topics'])
+        else:
+            for o in (event1['yes'] + event1['no'] + event1["maybe"]):
+                related_topic1.update(member_list[o]['topics'])
+            for o in (event2['yes'] + event2['no'] + event2["maybe"]):
+                related_topic2.update(member_list[o]['topics'])
         base = (len(related_topic1) + len(related_topic2))
         if base == 0:
             return 0.0
@@ -101,7 +117,7 @@ def test_similarity(member_list, topic_dict, group_list, train_set, test_set, si
 
     def predict(member_id, event):
         # predict member_id's choice of event
-        if sim_type == 'topic':
+        if user_sim == 'topic':
             member = member_list[member_id]
             sim_v = np.zeros(len(member_list), dtype = float)
             for topic_id in member['topics']:
@@ -112,7 +128,7 @@ def test_similarity(member_list, topic_dict, group_list, train_set, test_set, si
                 sim_v /= member_topic_num
                 np.nan_to_num(sim_v, 0.0)
             k_ns = np.argpartition(sim_v, -config.num_neighbours)[-config.num_neighbours:]
-        elif sim_type == 'event':
+        elif user_sim == 'event':
             sim_v = sim_array[member_id]
             k_ns = np.argpartition(sim_v, -config.num_neighbours)[-config.num_neighbours:]
 
@@ -120,8 +136,18 @@ def test_similarity(member_list, topic_dict, group_list, train_set, test_set, si
         total_maybe = 0
         total_no = 0
 
+        group_member = None
+        if social_constraint == 'group':
+            group_member = group_list[event['group']]['members']
+        elif social_constraint == 'event':
+            group_member = set([member_id for member_id in event['yes'] + event['no'] + event['maybe']])
+        
+        # else social_constraint == 'None'
+
         for related_member_id in k_ns:
             if sim_v[related_member_id] <= 0.0:
+                continue
+            if (social_constraint!='None') and (related_member_id not in group_member):
                 continue
             related_member = member_list[related_member_id]
             yes = 0
@@ -176,11 +202,12 @@ def test_similarity(member_list, topic_dict, group_list, train_set, test_set, si
             total_test += 1
             if predict(member, event) == 0:
                 correct_num += 1
-        print(f"predicted {idx} / {len(test_set)} event, correct rate: {correct_num / total_test}")
+        if print_correct:
+            print(f"predicted {idx} / {len(test_set)} event, correct rate: {correct_num / total_test}")
     return correct_num / total_test
 
 
-def test_cascade(member_list, topic_dict, group_list, train_set, test_set, sim_type='event'):
+def test_cascade(member_list, topic_dict, group_list, train_set, test_set, user_sim='choice', social_constraint='group', print_correct=False):
     # 社交级联，用迭代的方式使用户间互相影响， 最大迭代次数为10
     # 用户相似性为三维，对应不同决定, 计算方式见choice_dim函数，注意这个相似性不是对称的，而是表示当另一个用户做出某个选择时对此用户的影响强度
     # 函数最后注释部分为绘制级联迭代次数统计图
@@ -201,14 +228,13 @@ def test_cascade(member_list, topic_dict, group_list, train_set, test_set, sim_t
 
     def compute_member_sim(related_member):
         member_sim = None
-        if sim_type == 'choice':
+        if user_sim == 'choice':
             member_sim = np.zeros((len(related_member), len(related_member), 3), dtype = float)
-            member_event = np.zeros((len(related_member), len(train_set) + len(test_set) + 2))
+            member_event = np.zeros((len(related_member), len(train_set) + len(test_set) + 1))
             # 创建用户事件关系矩阵
-            # yes: 1
+            # yes & organizer: 1
             # no: 2
             # maybe: 3
-            # organizer: 4
             for idx1, member_id in enumerate(related_member):
                 member = member_list[member_id]
                 member_event[idx1, [e['id'] for e in member['yes'] + member['organizer']]] = 1
@@ -231,13 +257,13 @@ def test_cascade(member_list, topic_dict, group_list, train_set, test_set, sim_t
                         member_sim[idx1][idx2][0] = choice_sim(idx1, idx2, 1)
                         member_sim[idx1][idx2][1] = choice_sim(idx1, idx2, 2)
                         member_sim[idx1][idx2][2] = choice_sim(idx1, idx2, 3)
-        elif sim_type == 'event':
-            member_sim = np.zeros((len(related_member), len(train_set) + len(test_set) + 1))
+        elif user_sim == 'event':
+            member_sim = np.zeros((len(related_member), len(train_set) + len(test_set) + 2))
             # 创建用户事件关系矩阵
-            # yes: 1
-            # no: 2
-            # maybe: 3
-            # organizer: 4
+            # yes: 2
+            # no: -1
+            # maybe: 1
+            # organizer: 3
             for idx1, member_id in enumerate(related_member):
                 member = member_list[member_id]
                 member_sim[idx1, [e['id'] for e in member['yes']]] = 2
@@ -250,8 +276,10 @@ def test_cascade(member_list, topic_dict, group_list, train_set, test_set, sim_t
             
 
     for idx, event in enumerate(test_set):
-        related_member = group_list[event['group']]['members']
-        event_member = [member_id for member_id in event['yes'] + event['no'] + event['maybe']]
+        related_member = set([member_id for member_id in event['yes'] + event['no'] + event['maybe']])
+        if social_constraint == 'group':
+            related_member.update(group_list[event['group']]['members'])
+        related_member = list(related_member)        
         if len(related_member) == 0:
             continue
         choice = np.zeros(len(related_member), dtype = int)
@@ -282,9 +310,9 @@ def test_cascade(member_list, topic_dict, group_list, train_set, test_set, sim_t
             for idx1, member in enumerate(related_member):
                 weight = np.array([0.0, 0.0, 0.0])
                 for idx2, member_choice in enumerate(choice):
-                    if sim_type == 'choice':
+                    if user_sim == 'choice':
                         weight[member_choice] += member_sim[idx1][idx2][member_choice]
-                    elif sim_type == 'event':
+                    elif user_sim == 'event':
                         weight[member_choice] += member_sim[idx1][idx2] if idx1 != idx2 else 0.0
                 temp_choice[idx1] = np.argmax(weight)
             if np.all(temp_choice == choice):
@@ -292,6 +320,9 @@ def test_cascade(member_list, topic_dict, group_list, train_set, test_set, sim_t
             choice = temp_choice
         cascading_step_counter[i] += 1
         # 检测:
+        event_member = None
+        if social_constraint != 'event':
+            event_member = set([member_id for member_id in event['yes'] + event['no'] + event['maybe']])
         for idx1, pre in enumerate(choice):
             member_id = related_member[idx1]
             if pre == 0 and (member_id in event['yes']):
@@ -300,10 +331,10 @@ def test_cascade(member_list, topic_dict, group_list, train_set, test_set, sim_t
                 correct += 1
             elif pre == 2 and (member_id in event['maybe']):
                 correct += 1
-            if related_member[idx1] in event['yes'] + event['no'] + event['maybe']:
+            if social_constraint == 'event' or member_id in event_member:
                 predicted += 1
-                if predicted % 100 == 0 and predicted != 0:
-                    print(f"predicted {predicted} times in {idx + 1} events, {correct} correct, correct rate is {correct / predicted}")
+            if predicted % 100 == 0 and print_correct:
+                print(f"predicted {predicted} times in {idx + 1} events, {correct} correct, correct rate is {correct / predicted}")
             # # Count the number of cascading iterations and draw plots
             # if predicted % 300 == 0:
             #     plt.bar(range(config.cascading_max_step), cascading_step_counter)
