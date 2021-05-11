@@ -202,13 +202,13 @@ $$
 #### 实验结果及分析
 ##### 社交约束
 
-<table width="472">
+<table width="485">
 <tbody>
 <tr>
 <td width="112">用户相似度计算</td>
 <td width="166">事件相似度计算</td>
 <td width="102">社交约束</td>
-<td width="92">准确度</td>
+<td width="105">5折平均准确度</td>
 </tr>
 <tr>
 <td rowspan="6">用户共同topic</td>
