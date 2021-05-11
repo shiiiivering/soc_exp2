@@ -1,10 +1,13 @@
+import config
 import data_preprocess
 import train_test
 import nets
+import casc
 import networkx as nx
 import argparse
 import matplotlib.pyplot as plt
 import os
+
 
 def main():
     parser = argparse.ArgumentParser()
@@ -34,7 +37,16 @@ def main():
     train_test.process_k_fold(member_list, event_list, topic_dict, group_list, 5)
     # G = nets.create_member_similarity_array(member_list)
     # nx.write_gml(G, path + 's_dinetwork.gml')
+
+    # effects of increasing payoff, finding key people, generating communities and cluster cascading
+    # on the basis of Group event data "Yes", "No"
+    G_event = casc.read_single_group_event(config.data_path)
+    G = casc.community_impact(G_event)
+    casc.Calculate_Payoff(G)
+    casc.key_people(G)
+    casc.cascading_on_cluster(G)
     print(0)
+
 
 if __name__ == "__main__":
     main()
