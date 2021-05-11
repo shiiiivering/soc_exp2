@@ -78,13 +78,13 @@
 #### 实验结果及分析
 ##### 社交约束
 
-<table width="472">
+<table width="485">
 <tbody>
 <tr>
 <td width="112">用户相似度计算</td>
 <td width="166">事件相似度计算</td>
 <td width="102">社交约束</td>
-<td width="92">准确度</td>
+<td width="105">5折平均准确度</td>
 </tr>
 <tr>
 <td rowspan="6">用户共同topic</td>
@@ -114,7 +114,7 @@
 <td>64.94%</td>
 </tr>
 <tr>
-<td rowspan="6">用户共同topic</td>
+<td rowspan="6" width="112">用户参与事件的评分矩阵（余弦相似度）</td>
 <td rowspan="3">组织者共同topic</td>
 <td>同Group用户</td>
 <td>66.07%</td>
@@ -130,20 +130,27 @@
 <tr>
 <td rowspan="3">Event邀请用户共同topic</td>
 <td>同Group用户</td>
-<td>　</td>
+<td>N/A</td>
 </tr>
 <tr>
 <td>Event邀请用户</td>
-<td>　</td>
+<td>72.65%</td>
 </tr>
 <tr>
 <td>无</td>
-<td>　</td>
+<td>71.21%</td>
 </tr>
 </tbody>
 </table>
 
+注：其中一个数据运行时间过长，没获得
+
 ##### 社交级联
+
+| 用户相似度计算                       | 准确度 |
+| ------------------------------------ | ------ |
+| 用户参与事件的评分矩阵（余弦相似度） | 67.79% |
+| 用户对不同事件做出的选择             | 69.60% |
 
 ##### 网络结构演变
 不对事件进行权重处理时得到结果如下：\
