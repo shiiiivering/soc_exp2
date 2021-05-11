@@ -38,13 +38,13 @@ def main():
     # G = nets.create_member_similarity_array(member_list)
     # nx.write_gml(G, path + 's_dinetwork.gml')
 
-    # effects of increasing payoff, finding key people, generating communities and cluster cascading
+    # effects of increasing payoff, finding key people, generating communities and cluster cascading (Waleed)
     # on the basis of Group event data "Yes", "No"
-    G_event = casc.read_single_group_event(config.data_path)
-    G = casc.community_impact(G_event)
-    casc.Calculate_Payoff(G)
-    casc.key_people(G)
-    casc.cascading_on_cluster(G)
+    # G_event = casc.read_single_group_event(config.data_path)
+    # G = casc.community_impact(G_event)
+    # casc.Calculate_Payoff(G)
+    # casc.key_people(G)
+    # casc.cascading_on_cluster(G)
     print(0)
 
 
